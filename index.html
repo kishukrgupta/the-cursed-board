@@ -1,0 +1,2028 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>THE CURSED BOARD — 3D Horror Snakes &amp; Ladders</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --font-horror: 'Cinzel Decorative', 'Cinzel', Georgia, serif;
+      --font-gothic: 'Cinzel', Georgia, serif;
+      --font-body: 'Inter', system-ui, sans-serif;
+    }
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #040706;
+      color: #e2e8f0;
+      font-family: var(--font-body);
+    }
+    .font-horror { font-family: var(--font-horror); }
+    .font-gothic { font-family: var(--font-gothic); }
+
+    #vignette-overlay {
+      pointer-events: none;
+      background: radial-gradient(circle at center, transparent 48%, rgba(2, 5, 4, 0.72) 82%, rgba(0, 0, 0, 0.94) 100%);
+      transition: box-shadow 0.25s ease;
+    }
+    #bite-flash-overlay {
+      pointer-events: none;
+      opacity: 0;
+      background: radial-gradient(circle at center, rgba(220, 38, 38, 0.12) 20%, rgba(153, 27, 27, 0.68) 100%);
+      transition: opacity 0.18s ease-out;
+    }
+    .stone-panel {
+      background: linear-gradient(165deg, rgba(13, 19, 17, 0.90) 0%, rgba(7, 10, 9, 0.94) 100%);
+      border: 1px solid rgba(94, 122, 108, 0.28);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(8px);
+    }
+    .stone-btn {
+      background: linear-gradient(180deg, #1b2622 0%, #0e1412 100%);
+      border: 1px solid rgba(110, 145, 128, 0.35);
+      transition: all 0.2s ease;
+    }
+    .stone-btn:hover:not(:disabled) {
+      border-color: rgba(167, 243, 208, 0.65);
+      box-shadow: 0 0 14px rgba(52, 211, 153, 0.22);
+      transform: translateY(-1px);
+    }
+    .stone-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    .roll-btn-glow {
+      background: linear-gradient(135deg, #7f1d1d 0%, #450a0a 55%, #1f0505 100%);
+      border: 1px solid rgba(248, 113, 113, 0.55);
+      box-shadow: 0 0 22px rgba(220, 38, 38, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.2);
+      transition: all 0.2s ease;
+    }
+    .roll-btn-glow:hover:not(:disabled) {
+      background: linear-gradient(135deg, #991b1b 0%, #7f1d1d 60%, #2a0707 100%);
+      box-shadow: 0 0 30px rgba(239, 68, 68, 0.6), inset 0 1px 2px rgba(255, 255, 255, 0.3);
+      transform: translateY(-1px) scale(1.01);
+    }
+    .roll-btn-glow:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+    .active-player-card {
+      border-color: rgba(251, 191, 36, 0.75) !important;
+      box-shadow: 0 0 18px rgba(245, 158, 11, 0.25), inset 0 0 12px rgba(245, 158, 11, 0.08);
+    }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: #070a09; }
+    ::-webkit-scrollbar-thumb { background: #263831; border-radius: 3px; }
+  </style>
+</head>
+<body class="relative w-full h-full overflow-hidden select-none">
+
+  <!-- 3D WebGL Canvas Container -->
+  <div id="canvas-container" class="absolute inset-0 w-full h-full z-0 cursor-grab active:cursor-grabbing"></div>
+
+  <!-- Atmospheric Horror Vignette & Snake Attack Flash Overlays -->
+  <div id="vignette-overlay" class="absolute inset-0 z-10"></div>
+  <div id="bite-flash-overlay" class="absolute inset-0 z-10"></div>
+
+  <!-- TOP NAVIGATION & TITLE BAR -->
+  <header class="relative z-20 flex flex-wrap items-center justify-between gap-2 px-3 py-2 sm:px-5 sm:py-2.5 pointer-events-none">
+    <!-- Brand Emblem & Title -->
+    <div class="stone-panel pointer-events-auto flex items-center gap-2.5 sm:gap-3 px-3 py-1.5 rounded-xl">
+      <div class="w-9 h-9 sm:w-11 sm:h-11 rounded-full border border-emerald-500/40 bg-stone-950 flex items-center justify-center shadow-md flex-shrink-0">
+        <svg class="w-6 h-6 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <circle cx="12" cy="12" r="10" stroke-opacity="0.45"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8 16c0-2.5 2-3.5 4-3.5s4-1 4-3.5-2-3-4-3-3.5 1-3.5 2.5"/>
+          <circle cx="10.5" cy="7.5" r="0.8" fill="#ef4444" stroke="none"/>
+        </svg>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="font-horror text-sm sm:text-lg md:text-xl tracking-wider text-amber-100 drop-shadow">
+            THE CURSED BOARD
+          </h1>
+          <span id="mp-status-badge" class="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-full bg-emerald-950/90 text-emerald-300 border border-emerald-600/40">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span id="mp-badge-text">Local Ritual</span>
+          </span>
+        </div>
+        <p class="text-[10px] sm:text-xs text-emerald-300/75 tracking-wide">
+          Haunted Midnight Forest &bull; 100-Cell Stone Altar
+        </p>
+      </div>
+    </div>
+
+    <!-- Top Action Controls -->
+    <div class="pointer-events-auto flex flex-wrap items-center gap-1.5 sm:gap-2">
+      <!-- Camera View Presets -->
+      <div class="stone-panel hidden md:flex items-center p-1 rounded-lg gap-1 text-xs">
+        <button id="btn-cam-iso" type="button" class="px-2.5 py-1 rounded bg-emerald-900/60 text-emerald-200 border border-emerald-500/40 font-medium transition">
+          Isometric
+        </button>
+        <button id="btn-cam-top" type="button" class="px-2.5 py-1 rounded text-slate-300 hover:text-white transition">
+          Top-Down
+        </button>
+        <button id="btn-cam-follow" type="button" class="px-2.5 py-1 rounded text-slate-300 hover:text-white transition">
+          Follow Piece
+        </button>
+      </div>
+
+      <!-- Online Multiplayer Lobby Button -->
+      <button id="btn-open-lobby" type="button" class="stone-btn px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg text-xs font-gothic tracking-wider text-purple-200 flex items-center gap-1.5">
+        <svg class="w-3.5 h-3.5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+        <span>Players / Lobby</span>
+      </button>
+
+      <!-- Rules & Legend Button -->
+      <button id="btn-open-rules" type="button" class="stone-btn px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg text-xs font-gothic tracking-wider text-amber-200 flex items-center gap-1.5">
+        <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+        </svg>
+        <span>Rules &amp; Map</span>
+      </button>
+
+      <!-- Sound On/Off Button -->
+      <button id="btn-toggle-sound" type="button" class="stone-btn px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg text-xs font-medium text-emerald-200 flex items-center gap-1.5" title="Toggle Horror Sound Effects">
+        <span id="sound-icon-on" class="flex items-center gap-1">
+          <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/>
+          </svg>
+          <span class="hidden sm:inline">SFX On</span>
+        </span>
+        <span id="sound-icon-off" class="hidden items-center gap-1 text-slate-400">
+          <svg class="w-3.5 h-3.5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/>
+          </svg>
+          <span class="hidden sm:inline">Muted</span>
+        </span>
+      </button>
+
+      <!-- Restart Button -->
+      <button id="btn-restart-game" type="button" class="stone-btn px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg text-xs font-gothic tracking-wider text-rose-200 flex items-center gap-1">
+        <svg class="w-3.5 h-3.5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+        <span>Restart</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- EVENT BANNER (Shows Snake Attacks, Ladder Climbs, Turn Prompts) -->
+  <div class="relative z-20 flex justify-center px-3 pointer-events-none">
+    <div id="event-banner" class="stone-panel px-4 py-1.5 rounded-full text-xs sm:text-sm font-gothic tracking-wider text-amber-100 border border-amber-500/30 shadow-lg flex items-center gap-2 transition-all duration-300">
+      <span id="event-dot" class="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
+      <span id="event-text">The ritual begins at Cell 1. Player 1 (Crimson Exorcist), cast the cursed bone die.</span>
+    </div>
+  </div>
+
+  <!-- BOTTOM HUD: PLAYER MODE SELECTOR + 4-PLAYER STATUS PANEL + 3D DICE & ROLL CONTROLS -->
+  <footer class="absolute bottom-0 inset-x-0 z-20 p-2.5 sm:p-4 pointer-events-none flex flex-col lg:flex-row items-stretch lg:items-end justify-between gap-2.5">
+    
+    <!-- Four-Player Information Panel with Solo / 1vAI / 2P / 3P / 4P Quick Switcher -->
+    <div class="stone-panel pointer-events-auto rounded-xl p-2 sm:p-2.5 flex-1 max-w-2xl">
+      <div class="flex flex-wrap items-center justify-between gap-1.5 mb-1.5 px-1">
+        <div class="flex items-center gap-2">
+          <span class="font-gothic text-[11px] uppercase tracking-widest text-emerald-300/80">
+            Mode:
+          </span>
+          <div id="hud-mode-buttons" class="inline-flex items-center bg-black/60 p-0.5 rounded-lg border border-slate-700/70 text-[10px] font-semibold">
+            <button type="button" data-mode="1" class="mode-preset-btn px-2 py-0.5 rounded transition text-slate-300 hover:text-white" title="Solo (1 Player)">Solo (1P)</button>
+            <button type="button" data-mode="1vAI" class="mode-preset-btn px-2 py-0.5 rounded transition text-slate-300 hover:text-white" title="Solo vs AI Spirit">1P vs AI</button>
+            <button type="button" data-mode="2" class="mode-preset-btn px-2 py-0.5 rounded transition text-slate-300 hover:text-white" title="2 Players">2P</button>
+            <button type="button" data-mode="3" class="mode-preset-btn px-2 py-0.5 rounded transition text-slate-300 hover:text-white" title="3 Players">3P</button>
+            <button type="button" data-mode="4" class="mode-preset-btn px-2 py-0.5 rounded bg-emerald-900/70 text-emerald-200 border border-emerald-500/40 transition" title="4 Players">4P</button>
+          </div>
+        </div>
+        <span class="text-[11px] text-slate-400">
+          Goal: Exact Roll to <strong class="text-amber-300">Cell 100</strong>
+        </span>
+      </div>
+      <div id="players-grid" class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <!-- Populated dynamically by updateHUD() -->
+      </div>
+    </div>
+
+    <!-- 3D Dice Status & Roll Control Panel -->
+    <div class="stone-panel pointer-events-auto rounded-xl p-2.5 sm:p-3 flex items-center justify-between sm:justify-end gap-3 sm:gap-4 min-w-[290px] sm:min-w-[340px]">
+      <div class="flex items-center gap-3">
+        <div id="dice-pip-box" class="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-stone-800 via-stone-900 to-black border border-amber-500/40 shadow-inner flex flex-col items-center justify-center relative">
+          <span class="text-[9px] uppercase tracking-widest text-stone-400 leading-none">Die</span>
+          <span id="dice-value-text" class="font-horror text-xl sm:text-2xl text-amber-300 leading-tight mt-0.5">-</span>
+        </div>
+        <div>
+          <div class="text-[10px] uppercase tracking-widest text-slate-400">Current Turn</div>
+          <div id="active-turn-name" class="font-gothic text-xs sm:text-sm font-bold text-rose-400">
+            Player 1 (Red)
+          </div>
+          <div id="dice-substatus" class="text-[11px] text-emerald-300/80">
+            Ready to roll (1–6)
+          </div>
+        </div>
+      </div>
+
+      <!-- Primary Roll Dice Action Button -->
+      <button id="btn-roll-dice" type="button" class="roll-btn-glow px-4 py-3 sm:px-6 sm:py-3.5 rounded-xl font-horror text-xs sm:text-sm tracking-widest text-amber-100 uppercase flex items-center gap-2">
+        <svg class="w-4 h-4 text-amber-300 animate-spin" id="roll-spinner" style="display:none;" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+        </svg>
+        <span id="btn-roll-label">ROLL DICE</span>
+      </button>
+    </div>
+  </footer>
+
+  <!-- MODAL 1: GAME RULES & SNAKES/LADDERS ENDPOINT MAP -->
+  <div id="modal-rules" class="hidden fixed inset-0 z-40 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="stone-panel rounded-2xl max-w-2xl w-full max-h-[88vh] overflow-y-auto p-5 sm:p-6 border border-amber-500/30">
+      <div class="flex items-center justify-between border-b border-slate-700/60 pb-3 mb-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-full border border-amber-500/40 bg-stone-950 flex items-center justify-center">
+            <span class="text-amber-400 text-lg">&#9760;</span>
+          </div>
+          <div>
+            <h2 class="font-horror text-lg sm:text-xl text-amber-200">Codex of the Cursed Board</h2>
+            <p class="text-xs text-slate-400">Exact 10x10 Zigzag Numbering, Serpent Heads &amp; Wooden Ladders</p>
+          </div>
+        </div>
+        <button id="btn-close-rules" type="button" class="stone-btn px-3 py-1 rounded-lg text-xs text-slate-300 hover:text-white">
+          Close [X]
+        </button>
+      </div>
+
+      <div class="space-y-4 text-xs sm:text-sm text-slate-300 leading-relaxed">
+        <div class="p-3 rounded-xl bg-black/40 border border-slate-800">
+          <h3 class="font-gothic text-amber-300 font-semibold mb-1">1. Sacred Board &amp; Movement Rules</h3>
+          <ul class="list-disc list-inside space-y-1 text-xs text-slate-300">
+            <li><strong>Zigzag Path (1 to 100):</strong> Active players begin on <strong>Cell 1</strong> (bottom-left). Row 1 runs 1&rarr;10 (left to right), Row 2 runs 11&rarr;20 (right to left), alternating up to <strong>Cell 100</strong> (top-left).</li>
+            <li><strong>Player Modes:</strong> Choose <strong>Solo (1P)</strong>, <strong>1P vs AI</strong>, <strong>2P</strong>, <strong>3P</strong>, or <strong>4P</strong> anytime from the bottom bar or Lobby.</li>
+            <li><strong>Exact 100 Victory:</strong> You must roll the exact remaining steps to land on Cell 100.</li>
+          </ul>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="p-3 rounded-xl bg-rose-950/20 border border-rose-800/40">
+            <h3 class="font-gothic text-rose-300 font-semibold mb-2 flex items-center gap-1.5">
+              <span>&#9760;</span> 8 Cursed Serpents (Head &rarr; Tail)
+            </h3>
+            <div class="grid grid-cols-2 gap-1.5 text-xs">
+              <div class="bg-black/40 px-2 py-1 rounded border border-rose-900/40 flex justify-between"><span>Abyssal Viper:</span><strong class="text-rose-400">98 &rarr; 79</strong></div>
+              <div class="bg-black/40 px-2 py-1 rounded border border-rose-900/40 flex justify-between"><span>Rotscale Python:</span><strong class="text-rose-400">95 &rarr; 75</strong></div>
+              <div class="bg-black/40 px-2 py-1 rounded border border-rose-900/40 flex justify-between"><span>Void Cobra:</span><strong class="text-rose-400">93 &rarr; 73</strong></div>
+              <div class="bg-black/40 px-2 py-1 rounded border border-rose-900/40 flex justify-between"><span>Constrictor:</span><strong class="text-rose-400">87 &rarr; 24</strong></div>
+              <div class="bg-black/40 px-2 py-1 rounded border border-rose-900/40 flex justify-between"><span>Marsh Adder:</span><strong class="text-rose-400">64 &rarr; 60</strong></div>
+              <div class="bg-black/40 px-2 py-1 rounded border border-rose-900/40 flex justify-between"><span>Blood Serpent:</span><strong class="text-rose-400">62 &rarr; 19</strong></div>
+              <div class="bg-black/40 px-2 py-1 rounded border border-rose-900/40 flex justify-between"><span>Ash Rattler:</span><strong class="text-rose-400">54 &rarr; 34</strong></div>
+              <div class="bg-black/40 px-2 py-1 rounded border border-rose-900/40 flex justify-between"><span>Bog Asp:</span><strong class="text-rose-400">17 &rarr; 7</strong></div>
+            </div>
+          </div>
+
+          <div class="p-3 rounded-xl bg-emerald-950/20 border border-emerald-800/40">
+            <h3 class="font-gothic text-emerald-300 font-semibold mb-2 flex items-center gap-1.5">
+              <span>&#9875;</span> 8 Wooden Ladders (Bottom &rarr; Top)
+            </h3>
+            <div class="grid grid-cols-2 gap-1.5 text-xs">
+              <div class="bg-black/40 px-2 py-1 rounded border border-emerald-900/40 flex justify-between"><span>Crypt Steps:</span><strong class="text-emerald-400">4 &rarr; 14</strong></div>
+              <div class="bg-black/40 px-2 py-1 rounded border border-emerald-900/40 flex justify-between"><span>Gallows Climb:</span><strong class="text-emerald-400">9 &rarr; 31</strong></div>
+              <div class="bg-black/40 px-2 py-1 rounded border border-emerald-900/40 flex justify-between"><span>Sanctuary:</span><strong class="text-emerald-400">20 &rarr; 38</strong></div>
+              <div class="bg-black/40 px-2 py-1 rounded border border-emerald-900/40 flex justify-between"><span>Watchtower:</span><strong class="text-emerald-400">28 &rarr; 84</strong></div>
+              <div class="bg-black/40 px-2 py-1 rounded border border-emerald-900/40 flex justify-between"><span>Ossuary:</span><strong class="text-emerald-400">40 &rarr; 59</strong></div>
+              <div class="bg-black/40 px-2 py-1 rounded border border-emerald-900/40 flex justify-between"><span>Belfry Bridge:</span><strong class="text-emerald-400">51 &rarr; 67</strong></div>
+              <div class="bg-black/40 px-2 py-1 rounded border border-emerald-900/40 flex justify-between"><span>Catacomb Rise:</span><strong class="text-emerald-400">63 &rarr; 81</strong></div>
+              <div class="bg-black/40 px-2 py-1 rounded border border-emerald-900/40 flex justify-between"><span>Altar Ladder:</span><strong class="text-emerald-400">71 &rarr; 91</strong></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 2: PLAYER COUNT & MULTIPLAYER LOBBY -->
+  <div id="modal-lobby" class="hidden fixed inset-0 z-40 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="stone-panel rounded-2xl max-w-xl w-full p-5 sm:p-6 border border-purple-500/40">
+      <div class="flex items-center justify-between border-b border-slate-700/60 pb-3 mb-4">
+        <div>
+          <h2 class="font-horror text-lg sm:text-xl text-purple-200">Players &amp; Multiplayer Lobby</h2>
+          <p class="text-xs text-slate-400">Play Solo (1P), 2P, 3P, 4P or Sync Across Tabs via Room Code</p>
+        </div>
+        <button id="btn-close-lobby" type="button" class="stone-btn px-3 py-1 rounded-lg text-xs text-slate-300 hover:text-white">
+          Close [X]
+        </button>
+      </div>
+
+      <div class="space-y-4 text-xs sm:text-sm">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="p-3 rounded-xl bg-black/45 border border-purple-900/50 flex flex-col justify-between">
+            <div>
+              <div class="font-gothic text-purple-300 font-semibold mb-1">Host New Ritual Room</div>
+              <p class="text-[11px] text-slate-400 mb-3">Generate a room code and broadcast synchronized dice &amp; board state.</p>
+            </div>
+            <button id="btn-create-room" type="button" class="stone-btn w-full py-2 rounded-lg font-gothic text-purple-200 border-purple-500/40">
+              + Create Room Code
+            </button>
+          </div>
+
+          <div class="p-3 rounded-xl bg-black/45 border border-emerald-900/50 flex flex-col justify-between">
+            <div>
+              <div class="font-gothic text-emerald-300 font-semibold mb-1">Join Existing Room</div>
+              <input
+                id="input-room-code"
+                type="text"
+                placeholder="Enter Code (e.g. CURSE-8F4A)"
+                class="w-full px-2.5 py-1.5 rounded bg-stone-900 border border-slate-700 text-xs text-white uppercase tracking-wider mb-2 focus:outline-none focus:border-emerald-400"
+              />
+            </div>
+            <button id="btn-join-room" type="button" class="stone-btn w-full py-2 rounded-lg font-gothic text-emerald-200 border-emerald-500/40">
+              Join Room
+            </button>
+          </div>
+        </div>
+
+        <div id="lobby-room-box" class="p-3 rounded-xl bg-purple-950/30 border border-purple-500/40 flex items-center justify-between">
+          <div>
+            <div class="text-[10px] uppercase tracking-widest text-purple-300">Active Room Code</div>
+            <div id="lobby-room-code" class="font-horror text-base sm:text-lg text-amber-200 tracking-wider">LOCAL-COVEN</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="btn-copy-room" type="button" class="stone-btn px-3 py-1.5 rounded-lg text-xs text-amber-200">
+              Copy Invite Code
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <div class="font-gothic text-xs uppercase tracking-wider text-slate-400">
+              Quick Player Mode
+            </div>
+            <div class="flex flex-wrap gap-1.5 text-xs">
+              <button type="button" data-mode="1" class="mode-preset-btn stone-btn px-2.5 py-1 rounded text-amber-200">Solo (1P)</button>
+              <button type="button" data-mode="1vAI" class="mode-preset-btn stone-btn px-2.5 py-1 rounded text-purple-200">1P vs AI</button>
+              <button type="button" data-mode="2" class="mode-preset-btn stone-btn px-2.5 py-1 rounded text-emerald-200">2 Players</button>
+              <button type="button" data-mode="3" class="mode-preset-btn stone-btn px-2.5 py-1 rounded text-sky-200">3 Players</button>
+              <button type="button" data-mode="4" class="mode-preset-btn stone-btn px-2.5 py-1 rounded text-rose-200">4 Players</button>
+            </div>
+          </div>
+          <div class="font-gothic text-[11px] uppercase tracking-wider text-slate-400 mb-2">
+            Or Customize Each Slot (Click to cycle: Human &rarr; AI Spirit &rarr; Off)
+          </div>
+          <div id="lobby-slots-list" class="space-y-2"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 3: VICTORY SCREEN -->
+  <div id="modal-victory" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="stone-panel rounded-2xl max-w-md w-full p-6 text-center border border-amber-500/50 shadow-2xl">
+      <div class="w-20 h-20 mx-auto rounded-full border-2 border-amber-400 bg-stone-950 flex items-center justify-center shadow-lg mb-3">
+        <span class="text-3xl text-amber-300">&#9813;</span>
+      </div>
+      <div class="text-xs uppercase tracking-widest text-amber-400 font-gothic mb-1">The Cursed Altar Has Spoken</div>
+      <h2 id="victory-title" class="font-horror text-2xl sm:text-3xl text-amber-100 mb-2">
+        Player 1 Escapes the Forest!
+      </h2>
+      <p id="victory-subtitle" class="text-xs sm:text-sm text-slate-300 mb-5">
+        Reached Cell 100 by exact roll and broke the midnight curse.
+      </p>
+      <div class="flex items-center justify-center gap-3">
+        <button id="btn-victory-restart" type="button" class="roll-btn-glow px-6 py-3 rounded-xl font-horror text-xs sm:text-sm text-amber-100 tracking-wider uppercase">
+          Play New Ritual
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /*************************************************************************
+     * 1. CONFIGURATION: BOARD (10x10 ZIGZAG), 8 SNAKES, 8 LADDERS, 4 PLAYERS
+     *************************************************************************/
+    const TILE_SIZE = 1.32;
+    const TILE_GAP = 0.06;
+    const STEP = TILE_SIZE + TILE_GAP;
+
+    function getCellGrid(cellNumber) {
+      const c = Math.max(1, Math.min(100, cellNumber)) - 1;
+      const row = Math.floor(c / 10);
+      const colInRow = c % 10;
+      const col = (row % 2 === 0) ? colInRow : (9 - colInRow);
+      return { row, col };
+    }
+
+    function getCellWorldPos(cellNumber, yOffset = 0.25) {
+      const { row, col } = getCellGrid(cellNumber);
+      const halfSpan = (9 * STEP) / 2;
+      const x = col * STEP - halfSpan;
+      const z = (9 - row) * STEP - halfSpan;
+      return new THREE.Vector3(x, yOffset, z);
+    }
+
+    const SNAKES_CONFIG = [
+      { id: 's1', name: 'Abyssal Fang Viper', head: 98, tail: 79, bodyColor: '#5c1010', scaleAccent: '#991b1b', eyeColor: 0xff1e1e, radius: 0.17, coils: 2.5, speed: 2.4 },
+      { id: 's2', name: 'Rotscale Elder Python', head: 95, tail: 75, bodyColor: '#133820', scaleAccent: '#22c55e', eyeColor: 0x4ade80, radius: 0.17, coils: 2.5, speed: 2.0 },
+      { id: 's3', name: 'Voidspire Dread Cobra', head: 93, tail: 73, bodyColor: '#2e134d', scaleAccent: '#9333ea', eyeColor: 0xd8b4fe, radius: 0.17, coils: 2.5, speed: 2.3 },
+      { id: 's4', name: 'Graveyard Constrictor', head: 87, tail: 24, bodyColor: '#3d2910', scaleAccent: '#b45309', eyeColor: 0xfbbf24, radius: 0.20, coils: 4.5, speed: 1.7 },
+      { id: 's5', name: 'Biletooth Marsh Adder', head: 64, tail: 60, bodyColor: '#113330', scaleAccent: '#14b8a6', eyeColor: 0x2dd4bf, radius: 0.14, coils: 2.0, speed: 2.7 },
+      { id: 's6', name: 'Crimson Ritual Serpent', head: 62, tail: 19, bodyColor: '#4c0b1d', scaleAccent: '#e11d48', eyeColor: 0xf43f5e, radius: 0.19, coils: 4.0, speed: 1.9 },
+      { id: 's7', name: 'Ashen Hollow Rattler', head: 54, tail: 34, bodyColor: '#27272a', scaleAccent: '#71717a', eyeColor: 0xf97316, radius: 0.16, coils: 2.8, speed: 2.2 },
+      { id: 's8', name: 'Cursed Bog Asp', head: 17, tail: 7, bodyColor: '#233810', scaleAccent: '#65a30d', eyeColor: 0xa3e635, radius: 0.15, coils: 2.2, speed: 2.5 }
+    ];
+
+    const LADDERS_CONFIG = [
+      { id: 'l1', name: 'Crypt Steps', bottom: 4, top: 14, woodColor: 0x4a3019 },
+      { id: 'l2', name: 'Gallows Climb', bottom: 9, top: 31, woodColor: 0x57381e },
+      { id: 'l3', name: 'Sanctuary Scaffold', bottom: 20, top: 38, woodColor: 0x422a16 },
+      { id: 'l4', name: 'Watchtower Ascent', bottom: 28, top: 84, woodColor: 0x5c3b20 },
+      { id: 'l5', name: 'Ossuary Ladder', bottom: 40, top: 59, woodColor: 0x4a311b },
+      { id: 'l6', name: 'Belfry Bridge', bottom: 51, top: 67, woodColor: 0x52351c },
+      { id: 'l7', name: 'Catacomb Rise', bottom: 63, top: 81, woodColor: 0x452b15 },
+      { id: 'l8', name: 'Altar Ladder', bottom: 71, top: 91, woodColor: 0x593a1f }
+    ];
+
+    const SNAKE_BY_HEAD = {};
+    SNAKES_CONFIG.forEach(s => { SNAKE_BY_HEAD[s.head] = s; });
+
+    const LADDER_BY_BOTTOM = {};
+    LADDERS_CONFIG.forEach(l => { LADDER_BY_BOTTOM[l.bottom] = l; });
+
+    const PLAYERS_CONFIG = [
+      { id: 0, name: 'Crimson Exorcist', label: 'Player 1', colorName: 'Red', hex: '#ef4444', threeColor: 0xef4444, emissive: 0x7f1d1d, offset: new THREE.Vector3(-0.30, 0, -0.30) },
+      { id: 1, name: 'Spectral Warden', label: 'Player 2', colorName: 'Blue', hex: '#3b82f6', threeColor: 0x3b82f6, emissive: 0x1e3a8a, offset: new THREE.Vector3(0.30, 0, -0.30) },
+      { id: 2, name: 'Plague Alchemist', label: 'Player 3', colorName: 'Green', hex: '#22c55e', threeColor: 0x22c55e, emissive: 0x14532d, offset: new THREE.Vector3(-0.30, 0, 0.30) },
+      { id: 3, name: 'Void Occultist', label: 'Player 4', colorName: 'Purple', hex: '#a855f7', threeColor: 0xa855f7, emissive: 0x581c87, offset: new THREE.Vector3(0.30, 0, 0.30) }
+    ];
+
+    /*************************************************************************
+     * 2. PROCEDURAL HORROR SOUND ENGINE (WEB AUDIO API)
+     *************************************************************************/
+    class HorrorAudioEngine {
+      constructor() {
+        this.ctx = null;
+        this.enabled = true;
+        this.ambientStarted = false;
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) this.ctx = new AudioCtx();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+        if (this.ctx && !this.ambientStarted && this.enabled) {
+          this.startAmbientDrone();
+        }
+      }
+
+      startAmbientDrone() {
+        if (!this.ctx) return;
+        this.ambientStarted = true;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.value = 46;
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'lowpass';
+          filter.frequency.value = 110;
+          gain.gain.value = 0.025;
+          osc.connect(filter);
+          filter.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          this.droneGain = gain;
+        } catch (e) {}
+      }
+
+      toggle() {
+        this.enabled = !this.enabled;
+        if (this.droneGain && this.ctx) {
+          this.droneGain.gain.setTargetAtTime(this.enabled ? 0.025 : 0.0, this.ctx.currentTime, 0.1);
+        }
+        return this.enabled;
+      }
+
+      playDiceClatter() {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        [0, 0.09, 0.19, 0.31, 0.44].forEach((delay, idx) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(280 - idx * 32 + Math.random() * 60, now + delay);
+          osc.frequency.exponentialRampToValueAtTime(90, now + delay + 0.07);
+          gain.gain.setValueAtTime(0.14 / (idx * 0.4 + 1), now + delay);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.075);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now + delay);
+          osc.stop(now + delay + 0.08);
+        });
+      }
+
+      playStoneStep(stepIndex = 0) {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(145 + (stepIndex % 6) * 18, now);
+        osc.frequency.exponentialRampToValueAtTime(52, now + 0.11);
+        gain.gain.setValueAtTime(0.16, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.13);
+      }
+
+      playSnakeBite() {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const bufferSize = this.ctx.sampleRate * 0.55;
+        const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const output = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) output[i] = Math.random() * 2 - 1;
+        const whiteNoise = this.ctx.createBufferSource();
+        whiteNoise.buffer = noiseBuffer;
+
+        const bandpass = this.ctx.createBiquadFilter();
+        bandpass.type = 'bandpass';
+        bandpass.frequency.setValueAtTime(2400, now);
+        bandpass.frequency.exponentialRampToValueAtTime(900, now + 0.55);
+
+        const hissGain = this.ctx.createGain();
+        hissGain.gain.setValueAtTime(0.24, now);
+        hissGain.gain.exponentialRampToValueAtTime(0.01, now + 0.55);
+
+        whiteNoise.connect(bandpass);
+        bandpass.connect(hissGain);
+        hissGain.connect(this.ctx.destination);
+        whiteNoise.start(now);
+
+        const osc = this.ctx.createOscillator();
+        const biteGain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(190, now + 0.12);
+        osc.frequency.exponentialRampToValueAtTime(38, now + 0.65);
+        biteGain.gain.setValueAtTime(0.28, now + 0.12);
+        biteGain.gain.exponentialRampToValueAtTime(0.001, now + 0.68);
+        osc.connect(biteGain);
+        biteGain.connect(this.ctx.destination);
+        osc.start(now + 0.12);
+        osc.stop(now + 0.7);
+      }
+
+      playLadderClimb() {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        [0, 0.14, 0.28, 0.42, 0.56].forEach((d, i) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(220 + i * 55, now + d);
+          osc.frequency.exponentialRampToValueAtTime(160 + i * 40, now + d + 0.1);
+          gain.gain.setValueAtTime(0.14, now + d);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + d + 0.11);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now + d);
+          osc.stop(now + d + 0.12);
+        });
+      }
+
+      playVictoryChord() {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        [220, 277.18, 329.63, 440].forEach((freq) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, now);
+          gain.gain.setValueAtTime(0.12, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 2.2);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 2.25);
+        });
+      }
+    }
+
+    const soundEngine = new HorrorAudioEngine();
+
+    /*************************************************************************
+     * 3. GAME STATE (SUPPORTS SOLO 1P, 1vAI, 2P, 3P, 4P & MULTIPLAYER SYNC)
+     *************************************************************************/
+    const gameState = {
+      players: PLAYERS_CONFIG.map((cfg) => ({
+        ...cfg,
+        cell: 1,
+        active: true,
+        isAI: false
+      })),
+      selectedPreset: '4',
+      currentTurn: 0,
+      isAnimating: false,
+      lastDice: null,
+      winner: null,
+      roomCode: 'LOCAL-COVEN',
+      cameraMode: 'iso',
+      shakeTime: 0,
+      shakeIntensity: 0,
+      attackingSnakeId: null
+    };
+
+    let mpChannel = null;
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        mpChannel = new BroadcastChannel('the_cursed_board_mp_v1');
+        mpChannel.onmessage = (ev) => {
+          const data = ev.data;
+          if (!data || data.roomCode !== gameState.roomCode) return;
+          if (data.type === 'REMOTE_ROLL' && !gameState.isAnimating && gameState.winner === null) {
+            executeDiceRollWithResult(data.diceValue, true);
+          } else if (data.type === 'REMOTE_RESTART') {
+            resetGameState(true);
+          } else if (data.type === 'REMOTE_SLOT_TOGGLE') {
+            gameState.players[data.slot].active = data.active;
+            gameState.players[data.slot].isAI = data.isAI;
+            syncPieceVisibility();
+            updateHUD();
+            renderLobbySlots();
+          } else if (data.type === 'REMOTE_MODE_PRESET') {
+            applyPlayerCountPreset(data.preset, true);
+          }
+        };
+      }
+    } catch (e) {}
+
+    function broadcastMP(payload) {
+      if (mpChannel) {
+        try {
+          mpChannel.postMessage({ ...payload, roomCode: gameState.roomCode });
+        } catch (e) {}
+      }
+    }
+
+    /*************************************************************************
+     * 4. THREE.JS SCENE, HAUNTED FOREST, 100-CELL STONE BOARD, SNAKES, LADDERS
+     *************************************************************************/
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x040706);
+    scene.fog = new THREE.FogExp2(0x050908, 0.026);
+
+    const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 140);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.appendChild(renderer.domElement);
+
+    const camOrbit = {
+      theta: 0.0,
+      phi: 0.78,
+      radius: 21.5,
+      target: new THREE.Vector3(0, 0, 0.5),
+      currentLookAt: new THREE.Vector3(0, 0, 0.5),
+      desiredCamPos: new THREE.Vector3(0, 15, 15),
+      isDragging: false,
+      prevX: 0,
+      prevY: 0
+    };
+
+    const ambientLight = new THREE.AmbientLight(0x527064, 0.62);
+    scene.add(ambientLight);
+
+    const moonLight = new THREE.DirectionalLight(0xa5c4ff, 1.35);
+    moonLight.position.set(-14, 26, 16);
+    moonLight.castShadow = true;
+    moonLight.shadow.mapSize.width = 2048;
+    moonLight.shadow.mapSize.height = 2048;
+    moonLight.shadow.camera.near = 5;
+    moonLight.shadow.camera.far = 65;
+    const d = 11;
+    moonLight.shadow.camera.left = -d;
+    moonLight.shadow.camera.right = d;
+    moonLight.shadow.camera.top = d;
+    moonLight.shadow.camera.bottom = -d;
+    moonLight.shadow.bias = -0.0005;
+    scene.add(moonLight);
+
+    const rimLight = new THREE.DirectionalLight(0x7e22ce, 0.45);
+    rimLight.position.set(16, 12, -16);
+    scene.add(rimLight);
+
+    const cornerLights = [];
+    const cornerCoords = [
+      [-7.8, 1.6, -7.8],
+      [7.8, 1.6, -7.8],
+      [-7.8, 1.6, 7.8],
+      [7.8, 1.6, 7.8]
+    ];
+
+    function createStoneTileTexture(cellNum, isDarkSlab, hasSnakeHead, hasLadderBottom) {
+      const c = document.createElement('canvas');
+      c.width = 128;
+      c.height = 128;
+      const ctx = c.getContext('2d');
+
+      const grad = ctx.createRadialGradient(64, 64, 8, 64, 64, 90);
+      if (cellNum === 100) {
+        grad.addColorStop(0, '#45121b');
+        grad.addColorStop(1, '#1f070b');
+      } else if (cellNum === 1) {
+        grad.addColorStop(0, '#163026');
+        grad.addColorStop(1, '#0c1a15');
+      } else if (isDarkSlab) {
+        grad.addColorStop(0, '#222926');
+        grad.addColorStop(1, '#131716');
+      } else {
+        grad.addColorStop(0, '#2c3531');
+        grad.addColorStop(1, '#191f1d');
+      }
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 128, 128);
+
+      for (let i = 0; i < 90; i++) {
+        ctx.fillStyle = (i % 2 === 0) ? 'rgba(0,0,0,0.22)' : 'rgba(255,255,255,0.04)';
+        ctx.fillRect(Math.random() * 128, Math.random() * 128, 2 + Math.random() * 3, 2 + Math.random() * 3);
+      }
+
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.65)';
+      ctx.lineWidth = 6;
+      ctx.strokeRect(3, 3, 122, 122);
+
+      ctx.strokeStyle = 'rgba(167, 243, 208, 0.10)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(7, 7, 114, 114);
+
+      if (hasSnakeHead) {
+        ctx.strokeStyle = 'rgba(239, 68, 68, 0.42)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(64, 70, 34, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (hasLadderBottom) {
+        ctx.strokeStyle = 'rgba(52, 211, 153, 0.42)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(64, 70, 34, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      ctx.font = 'bold 34px Cinzel, Georgia, serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
+      ctx.shadowBlur = 4;
+
+      if (cellNum === 100) {
+        ctx.fillStyle = '#fda4af';
+      } else if (hasSnakeHead) {
+        ctx.fillStyle = '#fca5a5';
+      } else if (hasLadderBottom) {
+        ctx.fillStyle = '#6ee7b7';
+      } else if (cellNum % 10 === 0) {
+        ctx.fillStyle = '#fde68a';
+      } else {
+        ctx.fillStyle = '#cbd5e1';
+      }
+      ctx.fillText(String(cellNum), 12, 10);
+
+      if (cellNum === 1) {
+        ctx.font = 'bold 16px Inter, sans-serif';
+        ctx.fillStyle = '#34d399';
+        ctx.fillText('START', 12, 96);
+      } else if (cellNum === 100) {
+        ctx.font = 'bold 15px Inter, sans-serif';
+        ctx.fillStyle = '#fb7185';
+        ctx.fillText('CROWN', 12, 96);
+      }
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.anisotropy = 4;
+      return tex;
+    }
+
+    const boardGroup = new THREE.Group();
+    scene.add(boardGroup);
+
+    const groundGeo = new THREE.PlaneGeometry(110, 110, 32, 32);
+    const posAttr = groundGeo.attributes.position;
+    for (let i = 0; i < posAttr.count; i++) {
+      const vx = posAttr.getX(i);
+      const vy = posAttr.getY(i);
+      const dist = Math.sqrt(vx * vx + vy * vy);
+      if (dist > 10.5) {
+        posAttr.setZ(i, Math.sin(vx * 0.3) * Math.cos(vy * 0.3) * 0.65);
+      }
+    }
+    groundGeo.computeVertexNormals();
+    const groundMat = new THREE.MeshStandardMaterial({
+      color: 0x070d0a,
+      roughness: 0.96,
+      metalness: 0.05
+    });
+    const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+    groundMesh.rotation.x = -Math.PI / 2;
+    groundMesh.position.y = -0.42;
+    groundMesh.receiveShadow = true;
+    scene.add(groundMesh);
+
+    const outerSpan = 10 * STEP + 1.1;
+    const altarBaseGeo = new THREE.BoxGeometry(outerSpan, 0.52, outerSpan);
+    const altarBaseMat = new THREE.MeshStandardMaterial({
+      color: 0x101413,
+      roughness: 0.9,
+      metalness: 0.18
+    });
+    const altarBase = new THREE.Mesh(altarBaseGeo, altarBaseMat);
+    altarBase.position.y = -0.22;
+    altarBase.receiveShadow = true;
+    altarBase.castShadow = true;
+    boardGroup.add(altarBase);
+
+    cornerCoords.forEach(([cx, cy, cz]) => {
+      const pillar = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.38, 0.5, 1.3, 8),
+        new THREE.MeshStandardMaterial({ color: 0x1c2220, roughness: 0.85 })
+      );
+      pillar.position.set(cx, 0.25, cz);
+      pillar.castShadow = true;
+      pillar.receiveShadow = true;
+      boardGroup.add(pillar);
+
+      const flame = new THREE.Mesh(
+        new THREE.ConeGeometry(0.24, 0.55, 7),
+        new THREE.MeshBasicMaterial({ color: 0xff6b1a })
+      );
+      flame.position.set(cx, 1.15, cz);
+      boardGroup.add(flame);
+
+      const pLight = new THREE.PointLight(0xff5500, 0.95, 11);
+      pLight.position.set(cx, 1.5, cz);
+      boardGroup.add(pLight);
+      cornerLights.push({ light: pLight, flame, baseIntensity: 0.95, phase: Math.random() * 10 });
+    });
+
+    const tileMeshes = {};
+    const tileGeo = new THREE.BoxGeometry(TILE_SIZE, 0.28, TILE_SIZE);
+
+    for (let cell = 1; cell <= 100; cell++) {
+      const { row, col } = getCellGrid(cell);
+      const pos = getCellWorldPos(cell, 0);
+      const isDark = (row + col) % 2 === 1;
+      const hasSnake = Boolean(SNAKE_BY_HEAD[cell]);
+      const hasLadder = Boolean(LADDER_BY_BOTTOM[cell]);
+
+      const tex = createStoneTileTexture(cell, isDark, hasSnake, hasLadder);
+      const mat = new THREE.MeshStandardMaterial({
+        map: tex,
+        roughness: 0.82,
+        metalness: 0.15
+      });
+
+      const tileMesh = new THREE.Mesh(tileGeo, mat);
+      const heightVar = ((cell * 37) % 10) * 0.004 - 0.02;
+      tileMesh.position.set(pos.x, heightVar, pos.z);
+      tileMesh.receiveShadow = true;
+      tileMesh.castShadow = true;
+      boardGroup.add(tileMesh);
+      tileMeshes[cell] = tileMesh;
+    }
+
+    const forestGroup = new THREE.Group();
+    scene.add(forestGroup);
+
+    const treeTrunkMat = new THREE.MeshStandardMaterial({ color: 0x15110e, roughness: 0.95 });
+    const ruinStoneMat = new THREE.MeshStandardMaterial({ color: 0x1a201e, roughness: 0.9 });
+
+    function createTwistedTree(x, z, scale = 1) {
+      const tree = new THREE.Group();
+      tree.position.set(x, -0.4, z);
+      tree.rotation.y = Math.random() * Math.PI * 2;
+
+      const trunk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.22 * scale, 0.52 * scale, 4.8 * scale, 7),
+        treeTrunkMat
+      );
+      trunk.position.y = 2.4 * scale;
+      trunk.rotation.z = (Math.random() - 0.5) * 0.16;
+      trunk.castShadow = true;
+      tree.add(trunk);
+
+      for (let b = 0; b < 4; b++) {
+        const branch = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.05 * scale, 0.16 * scale, 2.4 * scale, 6),
+          treeTrunkMat
+        );
+        const angle = (b / 4) * Math.PI * 2 + Math.random() * 0.5;
+        branch.position.set(
+          Math.cos(angle) * 0.65 * scale,
+          (3.4 + b * 0.35) * scale,
+          Math.sin(angle) * 0.65 * scale
+        );
+        branch.rotation.z = Math.cos(angle) * 0.75;
+        branch.rotation.x = Math.sin(angle) * 0.75;
+        branch.castShadow = true;
+        tree.add(branch);
+      }
+      forestGroup.add(tree);
+    }
+
+    for (let i = 0; i < 28; i++) {
+      const ang = (i / 28) * Math.PI * 2;
+      const dist = 11.2 + (i % 3) * 3.2;
+      if (Math.sin(ang) > 0.65 && Math.abs(Math.cos(ang)) < 0.55) continue;
+      createTwistedTree(Math.cos(ang) * dist, Math.sin(ang) * dist, 0.85 + (i % 4) * 0.22);
+    }
+
+    for (let r = 0; r < 8; r++) {
+      const ang = (r / 8) * Math.PI * 2 + 0.3;
+      if (Math.sin(ang) > 0.65 && Math.abs(Math.cos(ang)) < 0.55) continue;
+      const pillar = new THREE.Mesh(
+        new THREE.BoxGeometry(0.85, 2.2 + (r % 3) * 1.1, 0.85),
+        ruinStoneMat
+      );
+      pillar.position.set(Math.cos(ang) * 9.8, 0.6, Math.sin(ang) * 9.8);
+      pillar.rotation.y = ang;
+      pillar.rotation.z = (r % 2 === 0 ? 1 : -1) * 0.08;
+      pillar.castShadow = true;
+      pillar.receiveShadow = true;
+      forestGroup.add(pillar);
+    }
+
+    const particleCount = 260;
+    const particleGeo = new THREE.BufferGeometry();
+    const particlePositions = new Float32Array(particleCount * 3);
+    for (let i = 0; i < particleCount; i++) {
+      particlePositions[i * 3] = (Math.random() - 0.5) * 26;
+      particlePositions[i * 3 + 1] = Math.random() * 9 + 0.3;
+      particlePositions[i * 3 + 2] = (Math.random() - 0.5) * 26;
+    }
+    particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+    const particleMat = new THREE.PointsMaterial({
+      color: 0x6ee7b7,
+      size: 0.11,
+      transparent: true,
+      opacity: 0.65
+    });
+    const sporeParticles = new THREE.Points(particleGeo, particleMat);
+    scene.add(sporeParticles);
+
+    /*************************************************************************
+     * 5. STAGE 3A: REALISTIC 3D CURSED SNAKES
+     *************************************************************************/
+    function createSnakeScaleTexture(baseHex, accentHex) {
+      const c = document.createElement('canvas');
+      c.width = 128;
+      c.height = 128;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = baseHex;
+      ctx.fillRect(0, 0, 128, 128);
+
+      ctx.strokeStyle = '#050505';
+      ctx.lineWidth = 2.5;
+      const step = 16;
+      for (let y = 0; y < 128; y += step) {
+        for (let x = 0; x < 128; x += step) {
+          ctx.fillStyle = ((x + y) / step) % 2 === 0 ? accentHex : baseHex;
+          ctx.beginPath();
+          ctx.moveTo(x + step / 2, y);
+          ctx.lineTo(x + step, y + step / 2);
+          ctx.lineTo(x + step / 2, y + step);
+          ctx.lineTo(x, y + step / 2);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        }
+      }
+      const tex = new THREE.CanvasTexture(c);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(10, 2);
+      return tex;
+    }
+
+    const snakeActors = {};
+
+    SNAKES_CONFIG.forEach((s) => {
+      const snakeGroup = new THREE.Group();
+      const headVec = getCellWorldPos(s.head, 0.22);
+      const tailVec = getCellWorldPos(s.tail, 0.18);
+      const dir = new THREE.Vector3().subVectors(tailVec, headVec);
+      const perp = new THREE.Vector3(-dir.z, 0, dir.x).normalize();
+
+      const pts = [];
+      const numPts = 32;
+      for (let i = 0; i <= numPts; i++) {
+        const t = i / numPts;
+        const p = new THREE.Vector3().lerpVectors(headVec, tailVec, t);
+        const wave = Math.sin(t * Math.PI * s.coils) * (1 - t * 0.35) * 0.68;
+        p.addScaledVector(perp, wave);
+        const headLift = t < 0.15 ? (1 - t / 0.15) * 0.28 : 0;
+        p.y += Math.sin(t * Math.PI) * 0.12 + headLift;
+        pts.push(p);
+      }
+
+      const curve = new THREE.CatmullRomCurve3(pts);
+      const scaleTex = createSnakeScaleTexture(s.bodyColor, s.scaleAccent);
+      const bodyGeo = new THREE.TubeGeometry(curve, 64, s.radius, 12, false);
+      const bodyMat = new THREE.MeshStandardMaterial({
+        map: scaleTex,
+        roughness: 0.42,
+        metalness: 0.25
+      });
+      const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
+      bodyMesh.castShadow = true;
+      bodyMesh.receiveShadow = true;
+      snakeGroup.add(bodyMesh);
+
+      const tailCone = new THREE.Mesh(
+        new THREE.ConeGeometry(s.radius * 0.65, 0.38, 10),
+        bodyMat
+      );
+      tailCone.position.copy(tailVec);
+      tailCone.rotation.x = Math.PI / 2;
+      snakeGroup.add(tailCone);
+
+      const headPivot = new THREE.Group();
+      headPivot.position.copy(pts[0]);
+      headPivot.lookAt(pts[3]);
+
+      const upperSkull = new THREE.Mesh(
+        new THREE.BoxGeometry(0.42, 0.20, 0.54),
+        bodyMat
+      );
+      upperSkull.castShadow = true;
+      headPivot.add(upperSkull);
+
+      const eyeGeo = new THREE.SphereGeometry(0.055, 10, 10);
+      const eyeMat = new THREE.MeshBasicMaterial({ color: s.eyeColor });
+      const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+      leftEye.position.set(-0.16, 0.07, 0.14);
+      const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+      rightEye.position.set(0.16, 0.07, 0.14);
+      headPivot.add(leftEye, rightEye);
+
+      const fangGeo = new THREE.ConeGeometry(0.028, 0.17, 8);
+      const fangMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.2 });
+      const leftFang = new THREE.Mesh(fangGeo, fangMat);
+      leftFang.position.set(-0.11, -0.12, 0.22);
+      leftFang.rotation.x = Math.PI;
+      const rightFang = new THREE.Mesh(fangGeo, fangMat);
+      rightFang.position.set(0.11, -0.12, 0.22);
+      rightFang.rotation.x = Math.PI;
+      headPivot.add(leftFang, rightFang);
+
+      const jawPivot = new THREE.Group();
+      jawPivot.position.set(0, -0.07, -0.05);
+      const lowerJaw = new THREE.Mesh(
+        new THREE.BoxGeometry(0.36, 0.09, 0.46),
+        new THREE.MeshStandardMaterial({ color: 0x3b0a0a, roughness: 0.6 })
+      );
+      lowerJaw.position.set(0, -0.03, 0.20);
+      jawPivot.add(lowerJaw);
+
+      const tongueGroup = new THREE.Group();
+      tongueGroup.position.set(0, 0.01, 0.38);
+      const tongueStem = new THREE.Mesh(
+        new THREE.BoxGeometry(0.028, 0.01, 0.28),
+        new THREE.MeshBasicMaterial({ color: 0xef4444 })
+      );
+      tongueGroup.add(tongueStem);
+      jawPivot.add(tongueGroup);
+
+      headPivot.add(jawPivot);
+      snakeGroup.add(headPivot);
+      boardGroup.add(snakeGroup);
+
+      snakeActors[s.id] = {
+        config: s,
+        group: snakeGroup,
+        headPivot,
+        jawPivot,
+        tongueGroup,
+        curve,
+        baseHeadY: pts[0].y
+      };
+    });
+
+    /*************************************************************************
+     * 6. STAGE 3B: REALISTIC 3D WEATHERED WOODEN LADDERS
+     *************************************************************************/
+    LADDERS_CONFIG.forEach((l) => {
+      const startVec = getCellWorldPos(l.bottom, 0.21);
+      const endVec = getCellWorldPos(l.top, 0.21);
+      const diff = new THREE.Vector3().subVectors(endVec, startVec);
+      const len = diff.length();
+      const mid = new THREE.Vector3().addVectors(startVec, endVec).multiplyScalar(0.5);
+      const yaw = Math.atan2(diff.x, diff.z);
+
+      const ladderGroup = new THREE.Group();
+      ladderGroup.position.copy(mid);
+      ladderGroup.rotation.y = yaw;
+
+      const woodMat = new THREE.MeshStandardMaterial({
+        color: l.woodColor,
+        roughness: 0.92,
+        metalness: 0.08
+      });
+
+      const railSep = 0.42;
+      const railGeo = new THREE.CylinderGeometry(0.042, 0.048, len, 8);
+
+      const leftRail = new THREE.Mesh(railGeo, woodMat);
+      leftRail.rotation.x = Math.PI / 2;
+      leftRail.position.set(-railSep / 2, 0.05, 0);
+      leftRail.castShadow = true;
+      leftRail.receiveShadow = true;
+      ladderGroup.add(leftRail);
+
+      const rightRail = new THREE.Mesh(railGeo, woodMat);
+      rightRail.rotation.x = Math.PI / 2;
+      rightRail.position.set(railSep / 2, 0.05, 0);
+      rightRail.castShadow = true;
+      rightRail.receiveShadow = true;
+      ladderGroup.add(rightRail);
+
+      const numRungs = Math.max(4, Math.floor(len / 0.62));
+      const rungGeo = new THREE.CylinderGeometry(0.028, 0.03, railSep + 0.08, 7);
+      const rungMat = new THREE.MeshStandardMaterial({ color: 0x6b4423, roughness: 0.9 });
+
+      for (let i = 0; i < numRungs; i++) {
+        const frac = (i + 0.7) / (numRungs + 0.4) - 0.5;
+        const rung = new THREE.Mesh(rungGeo, rungMat);
+        rung.position.set(0, 0.06, frac * len);
+        rung.rotation.z = Math.PI / 2 + ((i % 2 === 0 ? 1 : -1) * 0.035);
+        rung.castShadow = true;
+        ladderGroup.add(rung);
+      }
+
+      boardGroup.add(ladderGroup);
+    });
+
+    /*************************************************************************
+     * 7. STAGE 4A: FOUR UNIQUE 3D PLAYER PIECES & ACTIVE TURN HALO
+     *************************************************************************/
+    const playerMeshes = [];
+
+    PLAYERS_CONFIG.forEach((p, idx) => {
+      const pieceGroup = new THREE.Group();
+
+      const base = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.20, 0.25, 0.14, 14),
+        new THREE.MeshStandardMaterial({ color: 0x1c1917, roughness: 0.7, metalness: 0.4 })
+      );
+      base.position.y = 0.07;
+      base.castShadow = true;
+      pieceGroup.add(base);
+
+      const bodyMat = new THREE.MeshStandardMaterial({
+        color: p.threeColor,
+        emissive: p.emissive,
+        emissiveIntensity: 0.45,
+        roughness: 0.3,
+        metalness: 0.5
+      });
+
+      let relicMesh;
+      if (idx === 0) {
+        relicMesh = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.52, 8), bodyMat);
+      } else if (idx === 1) {
+        relicMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.22, 0), bodyMat);
+      } else if (idx === 2) {
+        relicMesh = new THREE.Mesh(new THREE.DodecahedronGeometry(0.20, 0), bodyMat);
+      } else {
+        relicMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.20, 0.50, 6), bodyMat);
+      }
+      relicMesh.position.y = 0.36;
+      relicMesh.castShadow = true;
+      pieceGroup.add(relicMesh);
+
+      const crownOrb = new THREE.Mesh(
+        new THREE.SphereGeometry(0.08, 10, 10),
+        new THREE.MeshBasicMaterial({ color: p.threeColor })
+      );
+      crownOrb.position.y = 0.68;
+      pieceGroup.add(crownOrb);
+
+      const startPos = getCellWorldPos(1, 0.16).add(p.offset);
+      pieceGroup.position.copy(startPos);
+      boardGroup.add(pieceGroup);
+      playerMeshes.push(pieceGroup);
+    });
+
+    const turnRingGeo = new THREE.RingGeometry(0.26, 0.34, 24);
+    const turnRingMat = new THREE.MeshBasicMaterial({
+      color: 0xfbbf24,
+      side: THREE.DoubleSide
+    });
+    const turnRingMesh = new THREE.Mesh(turnRingGeo, turnRingMat);
+    turnRingMesh.rotation.x = -Math.PI / 2;
+    boardGroup.add(turnRingMesh);
+
+    /*************************************************************************
+     * 8. STAGE 4B: REALISTIC PHYSICAL 3D SIX-SIDED DICE
+     *************************************************************************/
+    function createDiceFaceTexture(value) {
+      const c = document.createElement('canvas');
+      c.width = 128;
+      c.height = 128;
+      const ctx = c.getContext('2d');
+
+      const grad = ctx.createRadialGradient(64, 64, 10, 64, 64, 90);
+      grad.addColorStop(0, '#292524');
+      grad.addColorStop(1, '#0c0a09');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 128, 128);
+
+      ctx.strokeStyle = '#b45309';
+      ctx.lineWidth = 8;
+      ctx.strokeRect(4, 4, 120, 120);
+
+      const pipCoords = {
+        1: [[64, 64]],
+        2: [[36, 36], [92, 92]],
+        3: [[34, 34], [64, 64], [94, 94]],
+        4: [[36, 36], [92, 36], [36, 92], [92, 92]],
+        5: [[34, 34], [94, 34], [64, 64], [34, 94], [94, 94]],
+        6: [[36, 30], [92, 30], [36, 64], [92, 64], [36, 98], [92, 98]]
+      };
+
+      ctx.fillStyle = value === 6 || value === 1 ? '#f43f5e' : '#fbbf24';
+      ctx.shadowColor = value === 6 || value === 1 ? '#e11d48' : '#f59e0b';
+      ctx.shadowBlur = 8;
+      (pipCoords[value] || []).forEach(([px, py]) => {
+        ctx.beginPath();
+        ctx.arc(px, py, value === 1 ? 16 : 11, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      return new THREE.CanvasTexture(c);
+    }
+
+    const diceMaterials = [
+      new THREE.MeshStandardMaterial({ map: createDiceFaceTexture(2), roughness: 0.35, metalness: 0.2 }),
+      new THREE.MeshStandardMaterial({ map: createDiceFaceTexture(5), roughness: 0.35, metalness: 0.2 }),
+      new THREE.MeshStandardMaterial({ map: createDiceFaceTexture(1), roughness: 0.35, metalness: 0.2 }),
+      new THREE.MeshStandardMaterial({ map: createDiceFaceTexture(6), roughness: 0.35, metalness: 0.2 }),
+      new THREE.MeshStandardMaterial({ map: createDiceFaceTexture(3), roughness: 0.35, metalness: 0.2 }),
+      new THREE.MeshStandardMaterial({ map: createDiceFaceTexture(4), roughness: 0.35, metalness: 0.2 })
+    ];
+
+    const diceMesh = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.95, 0.95), diceMaterials);
+    diceMesh.position.set(0, 0.65, 0);
+    diceMesh.castShadow = true;
+    diceMesh.receiveShadow = true;
+    boardGroup.add(diceMesh);
+
+    const DICE_TOP_ROTATIONS = {
+      1: new THREE.Euler(0, 0, 0),
+      6: new THREE.Euler(Math.PI, 0, 0),
+      2: new THREE.Euler(0, 0, Math.PI / 2),
+      5: new THREE.Euler(0, 0, -Math.PI / 2),
+      3: new THREE.Euler(-Math.PI / 2, 0, 0),
+      4: new THREE.Euler(Math.PI / 2, 0, 0)
+    };
+
+    /*************************************************************************
+     * 9. STAGE 5: GAMEPLAY LOGIC, PLAYER MODES (1P, 2P, 3P, 4P) & ANIMATIONS
+     *************************************************************************/
+    function setBannerMessage(text, dotColorClass = 'bg-amber-400') {
+      const bannerText = document.getElementById('event-text');
+      const bannerDot = document.getElementById('event-dot');
+      if (bannerText) bannerText.textContent = text;
+      if (bannerDot) {
+        bannerDot.className = `w-2 h-2 rounded-full ${dotColorClass} animate-ping`;
+      }
+    }
+
+    function syncPieceVisibility() {
+      gameState.players.forEach((p, idx) => {
+        if (playerMeshes[idx]) {
+          playerMeshes[idx].visible = Boolean(p.active);
+        }
+      });
+      if (!gameState.players[gameState.currentTurn]?.active) {
+        const firstActive = gameState.players.findIndex((p) => p.active);
+        gameState.currentTurn = firstActive >= 0 ? firstActive : 0;
+      }
+    }
+
+    function getNextActiveTurnIndex(currentIdx) {
+      for (let step = 1; step <= 4; step++) {
+        const candidate = (currentIdx + step) % 4;
+        if (gameState.players[candidate].active) {
+          return candidate;
+        }
+      }
+      return currentIdx;
+    }
+
+    function updateModeButtonsUI() {
+      document.querySelectorAll('#hud-mode-buttons .mode-preset-btn').forEach((btn) => {
+        const m = btn.getAttribute('data-mode');
+        if (m === gameState.selectedPreset) {
+          btn.className = 'mode-preset-btn px-2 py-0.5 rounded bg-emerald-900/70 text-emerald-200 border border-emerald-500/40 transition';
+        } else {
+          btn.className = 'mode-preset-btn px-2 py-0.5 rounded transition text-slate-300 hover:text-white';
+        }
+      });
+    }
+
+    function applyPlayerCountPreset(preset, isRemote = false) {
+      if (gameState.isAnimating) return;
+      gameState.selectedPreset = String(preset);
+
+      if (preset === '1') {
+        gameState.players.forEach((p, idx) => {
+          p.active = idx === 0;
+          p.isAI = false;
+        });
+      } else if (preset === '1vAI') {
+        gameState.players.forEach((p, idx) => {
+          p.active = idx === 0 || idx === 1;
+          p.isAI = idx === 1;
+        });
+      } else {
+        const count = Math.max(1, Math.min(4, Number(preset) || 4));
+        gameState.players.forEach((p, idx) => {
+          p.active = idx < count;
+          p.isAI = false;
+        });
+      }
+
+      syncPieceVisibility();
+      resetGameState(true);
+      renderLobbySlots();
+      updateModeButtonsUI();
+
+      const modeNames = {
+        '1': 'Solo (1 Player) Ritual',
+        '1vAI': 'Solo vs Cursed AI Spirit',
+        '2': '2 Players Ritual',
+        '3': '3 Players Ritual',
+        '4': '4 Players Ritual'
+      };
+      setBannerMessage(`Mode set to ${modeNames[preset] || 'Custom Ritual'}. Player 1 begins at Cell 1!`, 'bg-emerald-400');
+
+      if (!isRemote) {
+        broadcastMP({ type: 'REMOTE_MODE_PRESET', preset });
+      }
+    }
+
+    function updateHUD() {
+      const grid = document.getElementById('players-grid');
+      if (!grid) return;
+
+      grid.innerHTML = gameState.players.map((p, idx) => {
+        if (!p.active) {
+          return `
+            <div class="rounded-lg p-2 bg-black/25 border border-slate-900/60 opacity-40 flex flex-col justify-between">
+              <div class="flex items-center justify-between gap-1">
+                <div class="flex items-center gap-1.5 min-w-0">
+                  <span class="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-slate-700"></span>
+                  <span class="font-gothic text-xs font-bold text-slate-500 truncate">${p.label}</span>
+                </div>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-950 text-slate-500 border border-slate-800/50">
+                  Off
+                </span>
+              </div>
+              <div class="mt-1.5 flex items-baseline justify-between">
+                <span class="text-[10px] text-slate-600 truncate">Empty Slot</span>
+                <span class="font-horror text-xs text-slate-600">&mdash;</span>
+              </div>
+            </div>
+          `;
+        }
+
+        const isTurn = gameState.currentTurn === idx && gameState.winner === null;
+        return `
+          <div class="rounded-lg p-2 bg-black/55 border ${isTurn ? 'active-player-card' : 'border-slate-800/80'} transition-all flex flex-col justify-between">
+            <div class="flex items-center justify-between gap-1">
+              <div class="flex items-center gap-1.5 min-w-0">
+                <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:${p.hex}; box-shadow: 0 0 8px ${p.hex};"></span>
+                <span class="font-gothic text-xs font-bold text-slate-100 truncate">${p.label}</span>
+              </div>
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700/60">
+                ${p.isAI ? 'AI Spirit' : 'Human'}
+              </span>
+            </div>
+            <div class="mt-1.5 flex items-baseline justify-between">
+              <span class="text-[10px] text-slate-400 truncate">${p.name}</span>
+              <span class="font-horror text-xs sm:text-sm text-amber-300">Cell ${p.cell}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      const activePlayer = gameState.players[gameState.currentTurn];
+      const turnNameEl = document.getElementById('active-turn-name');
+      if (turnNameEl && activePlayer) {
+        turnNameEl.textContent = `${activePlayer.label} (${activePlayer.colorName})`;
+        turnNameEl.style.color = activePlayer.hex;
+      }
+
+      const rollBtn = document.getElementById('btn-roll-dice');
+      const rollLabel = document.getElementById('btn-roll-label');
+      const spinner = document.getElementById('roll-spinner');
+      if (rollBtn) {
+        rollBtn.disabled = gameState.isAnimating || gameState.winner !== null;
+      }
+      if (rollLabel) {
+        rollLabel.textContent = gameState.isAnimating ? 'RITUAL ACTIVE...' : 'ROLL DICE';
+      }
+      if (spinner) {
+        spinner.style.display = gameState.isAnimating ? 'inline-block' : 'none';
+      }
+    }
+
+    function sleep(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    async function animate3DDiceRoll(resultValue) {
+      soundEngine.playDiceClatter();
+      const duration = 680;
+      const startTime = performance.now();
+      const targetRot = DICE_TOP_ROTATIONS[resultValue];
+      const extraSpinsX = Math.PI * 4;
+      const extraSpinsZ = Math.PI * 2;
+
+      return new Promise((resolve) => {
+        function step(now) {
+          const t = Math.min(1, (now - startTime) / duration);
+          const easeOut = 1 - Math.pow(1 - t, 3);
+          const bounce = Math.abs(Math.sin(t * Math.PI * 2.5)) * (1 - t) * 3.2;
+          diceMesh.position.set(
+            Math.sin(t * Math.PI * 2) * (1 - t) * 1.4,
+            0.65 + bounce,
+            Math.cos(t * Math.PI * 2) * (1 - t) * 1.4
+          );
+
+          diceMesh.rotation.x = targetRot.x + (1 - easeOut) * extraSpinsX;
+          diceMesh.rotation.y = targetRot.y + (1 - easeOut) * Math.PI * 2;
+          diceMesh.rotation.z = targetRot.z + (1 - easeOut) * extraSpinsZ;
+
+          if (t < 1) {
+            requestAnimationFrame(step);
+          } else {
+            diceMesh.rotation.copy(targetRot);
+            diceMesh.position.set(0, 0.65, 0);
+            resolve();
+          }
+        }
+        requestAnimationFrame(step);
+      });
+    }
+
+    async function animatePieceHop(playerIdx, fromCell, toCell) {
+      const mesh = playerMeshes[playerIdx];
+      const offset = PLAYERS_CONFIG[playerIdx].offset;
+      const startPos = getCellWorldPos(fromCell, 0.16).add(offset);
+      const endPos = getCellWorldPos(toCell, 0.16).add(offset);
+      const duration = 250;
+      const startTime = performance.now();
+      soundEngine.playStoneStep(toCell);
+
+      return new Promise((resolve) => {
+        function frame(now) {
+          const t = Math.min(1, (now - startTime) / duration);
+          mesh.position.lerpVectors(startPos, endPos, t);
+          mesh.position.y += Math.sin(t * Math.PI) * 0.55;
+          if (t < 1) {
+            requestAnimationFrame(frame);
+          } else {
+            mesh.position.copy(endPos);
+            resolve();
+          }
+        }
+        requestAnimationFrame(frame);
+      });
+    }
+
+    async function animateSnakeBite(playerIdx, snake) {
+      gameState.attackingSnakeId = snake.id;
+      gameState.shakeTime = 0.65;
+      gameState.shakeIntensity = 0.38;
+
+      const flashEl = document.getElementById('bite-flash-overlay');
+      if (flashEl) {
+        flashEl.style.opacity = '1';
+        setTimeout(() => { flashEl.style.opacity = '0'; }, 420);
+      }
+
+      soundEngine.playSnakeBite();
+      setBannerMessage(
+        `${snake.name} on Cell ${snake.head} strikes ${gameState.players[playerIdx].label}! Dragged down to Tail at Cell ${snake.tail}!`,
+        'bg-rose-500'
+      );
+
+      await sleep(380);
+
+      const actor = snakeActors[snake.id];
+      const mesh = playerMeshes[playerIdx];
+      const offset = PLAYERS_CONFIG[playerIdx].offset;
+      const duration = 950;
+      const startTime = performance.now();
+
+      await new Promise((resolve) => {
+        function slide(now) {
+          const t = Math.min(1, (now - startTime) / duration);
+          const pt = actor.curve.getPointAt(t);
+          mesh.position.set(pt.x + offset.x * t, pt.y + 0.12, pt.z + offset.z * t);
+          if (t < 1) {
+            requestAnimationFrame(slide);
+          } else {
+            mesh.position.copy(getCellWorldPos(snake.tail, 0.16).add(offset));
+            resolve();
+          }
+        }
+        requestAnimationFrame(slide);
+      });
+
+      gameState.attackingSnakeId = null;
+    }
+
+    async function animateLadderClimb(playerIdx, ladder) {
+      soundEngine.playLadderClimb();
+      setBannerMessage(
+        `${gameState.players[playerIdx].label} climbs ${ladder.name} from Cell ${ladder.bottom} up to Cell ${ladder.top}!`,
+        'bg-emerald-400'
+      );
+
+      const mesh = playerMeshes[playerIdx];
+      const offset = PLAYERS_CONFIG[playerIdx].offset;
+      const startPos = getCellWorldPos(ladder.bottom, 0.22);
+      const endPos = getCellWorldPos(ladder.top, 0.22);
+      const duration = 880;
+      const startTime = performance.now();
+
+      await new Promise((resolve) => {
+        function climb(now) {
+          const t = Math.min(1, (now - startTime) / duration);
+          mesh.position.lerpVectors(startPos, endPos, t);
+          mesh.position.y += Math.abs(Math.sin(t * Math.PI * 6)) * 0.18;
+          if (t < 1) {
+            requestAnimationFrame(climb);
+          } else {
+            mesh.position.copy(getCellWorldPos(ladder.top, 0.16).add(offset));
+            resolve();
+          }
+        }
+        requestAnimationFrame(climb);
+      });
+    }
+
+    async function executeDiceRollWithResult(diceValue, isRemote = false) {
+      if (gameState.isAnimating || gameState.winner !== null) return;
+      gameState.isAnimating = true;
+      gameState.lastDice = diceValue;
+
+      if (!isRemote) {
+        broadcastMP({ type: 'REMOTE_ROLL', diceValue });
+      }
+
+      const pIdx = gameState.currentTurn;
+      const player = gameState.players[pIdx];
+
+      const valText = document.getElementById('dice-value-text');
+      const subText = document.getElementById('dice-substatus');
+      if (valText) valText.textContent = '?';
+      if (subText) subText.textContent = 'Bone die tumbling...';
+      updateHUD();
+
+      await animate3DDiceRoll(diceValue);
+
+      if (valText) valText.textContent = String(diceValue);
+      if (subText) subText.textContent = `Rolled ${diceValue}`;
+
+      const startCell = player.cell;
+      const targetCell = startCell + diceValue;
+
+      if (targetCell > 100) {
+        setBannerMessage(
+          `${player.label} rolled ${diceValue} on Cell ${startCell} (needs exact ${100 - startCell} for Cell 100). Turn passes.`,
+          'bg-amber-400'
+        );
+        await sleep(650);
+      } else {
+        setBannerMessage(
+          `${player.label} rolled ${diceValue}: advancing from Cell ${startCell} to Cell ${targetCell}`,
+          'bg-emerald-400'
+        );
+
+        for (let c = startCell + 1; c <= targetCell; c++) {
+          await animatePieceHop(pIdx, c - 1, c);
+          player.cell = c;
+          updateHUD();
+        }
+
+        const snakeHit = SNAKE_BY_HEAD[targetCell];
+        const ladderHit = LADDER_BY_BOTTOM[targetCell];
+
+        if (snakeHit) {
+          await animateSnakeBite(pIdx, snakeHit);
+          player.cell = snakeHit.tail;
+          updateHUD();
+        } else if (ladderHit) {
+          await animateLadderClimb(pIdx, ladderHit);
+          player.cell = ladderHit.top;
+          updateHUD();
+        }
+      }
+
+      if (player.cell === 100) {
+        gameState.winner = pIdx;
+        gameState.isAnimating = false;
+        soundEngine.playVictoryChord();
+        setBannerMessage(
+          `VICTORY! ${player.label} (${player.name}) reached Cell 100 and conquered The Cursed Board!`,
+          'bg-amber-300'
+        );
+        showVictoryModal(player);
+        updateHUD();
+        return;
+      }
+
+      gameState.currentTurn = getNextActiveTurnIndex(gameState.currentTurn);
+      gameState.isAnimating = false;
+      const nextPlayer = gameState.players[gameState.currentTurn];
+      setBannerMessage(
+        `${nextPlayer.label} (${nextPlayer.name}) at Cell ${nextPlayer.cell} — Ready to roll.`,
+        'bg-emerald-400'
+      );
+      updateHUD();
+
+      if (nextPlayer.active && nextPlayer.isAI && gameState.winner === null) {
+        setTimeout(() => {
+          const curP = gameState.players[gameState.currentTurn];
+          if (!gameState.isAnimating && curP && curP.active && curP.isAI) {
+            const aiRoll = Math.floor(Math.random() * 6) + 1;
+            executeDiceRollWithResult(aiRoll, false);
+          }
+        }, 700);
+      }
+    }
+
+    function triggerRollDice() {
+      if (gameState.isAnimating || gameState.winner !== null) return;
+      const randomResult = Math.floor(Math.random() * 6) + 1;
+      executeDiceRollWithResult(randomResult, false);
+    }
+
+    function resetGameState(isRemote = false) {
+      gameState.isAnimating = false;
+      const firstActive = gameState.players.findIndex((p) => p.active);
+      gameState.currentTurn = firstActive >= 0 ? firstActive : 0;
+      gameState.lastDice = null;
+      gameState.winner = null;
+      gameState.attackingSnakeId = null;
+
+      gameState.players.forEach((p, idx) => {
+        p.cell = 1;
+        const startPos = getCellWorldPos(1, 0.16).add(PLAYERS_CONFIG[idx].offset);
+        playerMeshes[idx].position.copy(startPos);
+      });
+
+      syncPieceVisibility();
+
+      const valText = document.getElementById('dice-value-text');
+      const subText = document.getElementById('dice-substatus');
+      if (valText) valText.textContent = '-';
+      if (subText) subText.textContent = 'Ready to roll (1–6)';
+
+      document.getElementById('modal-victory').classList.add('hidden');
+      const startPlayer = gameState.players[gameState.currentTurn];
+      setBannerMessage(`The altar resets at Cell 1. ${startPlayer.label} (${startPlayer.colorName}) begins.`, 'bg-rose-500');
+      updateHUD();
+
+      if (!isRemote) {
+        broadcastMP({ type: 'REMOTE_RESTART' });
+      }
+    }
+
+    function showVictoryModal(winner) {
+      const modal = document.getElementById('modal-victory');
+      const title = document.getElementById('victory-title');
+      const sub = document.getElementById('victory-subtitle');
+      if (title) title.textContent = `${winner.label} (${winner.colorName}) Conquers the Altar!`;
+      if (sub) sub.textContent = `${winner.name} reached Cell 100 by exact roll and escaped the cursed midnight forest.`;
+      if (modal) modal.classList.remove('hidden');
+    }
+
+    /*************************************************************************
+     * 10. UI CONTROLS, CAMERA ORBIT/PRESETS & LOBBY HANDLERS
+     *************************************************************************/
+    function setCameraPreset(mode) {
+      gameState.cameraMode = mode;
+      const btnIso = document.getElementById('btn-cam-iso');
+      const btnTop = document.getElementById('btn-cam-top');
+      const btnFollow = document.getElementById('btn-cam-follow');
+      [btnIso, btnTop, btnFollow].forEach((b) => {
+        if (!b) return;
+        b.className = 'px-2.5 py-1 rounded text-slate-300 hover:text-white transition';
+      });
+      const activeBtn = mode === 'iso' ? btnIso : mode === 'top' ? btnTop : btnFollow;
+      if (activeBtn) {
+        activeBtn.className = 'px-2.5 py-1 rounded bg-emerald-900/60 text-emerald-200 border border-emerald-500/40 font-medium transition';
+      }
+
+      if (mode === 'iso') {
+        camOrbit.theta = 0.0;
+        camOrbit.phi = 0.78;
+        camOrbit.radius = 21.5;
+        camOrbit.target.set(0, 0, 0.5);
+      } else if (mode === 'top') {
+        camOrbit.theta = 0.0;
+        camOrbit.phi = 0.18;
+        camOrbit.radius = 20.5;
+        camOrbit.target.set(0, 0, 0);
+      }
+    }
+
+    function renderLobbySlots() {
+      const listEl = document.getElementById('lobby-slots-list');
+      if (!listEl) return;
+      listEl.innerHTML = gameState.players.map((p, idx) => {
+        let modeLabel = 'Mode: Human Player';
+        let modeStyle = 'text-emerald-300 border-emerald-500/40';
+        if (!p.active) {
+          modeLabel = 'Slot: Off (Inactive)';
+          modeStyle = 'text-slate-400 border-slate-700/60 opacity-65';
+        } else if (p.isAI) {
+          modeLabel = 'Mode: Cursed AI Spirit';
+          modeStyle = 'text-amber-300 border-amber-500/40';
+        }
+        return `
+        <div class="flex items-center justify-between p-2.5 rounded-lg bg-black/50 border border-slate-800">
+          <div class="flex items-center gap-2.5">
+            <span class="w-3 h-3 rounded-full" style="background:${p.active ? p.hex : '#475569'}; box-shadow: 0 0 8px ${p.active ? p.hex : 'transparent'};"></span>
+            <div>
+              <div class="font-gothic text-xs font-bold ${p.active ? 'text-white' : 'text-slate-500'}">${p.label} &mdash; ${p.name} (${p.colorName})</div>
+              <div class="text-[11px] text-slate-400">${p.active ? `Active at Cell ${p.cell}` : 'Inactive in current ritual'}</div>
+            </div>
+          </div>
+          <button
+            type="button"
+            data-slot="${idx}"
+            class="slot-mode-btn stone-btn px-3 py-1 rounded text-xs font-medium ${modeStyle}"
+          >
+            ${modeLabel}
+          </button>
+        </div>
+      `;
+      }).join('');
+
+      listEl.querySelectorAll('.slot-mode-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const slotIdx = Number(btn.getAttribute('data-slot'));
+          const p = gameState.players[slotIdx];
+
+          if (p.active && !p.isAI) {
+            p.isAI = true;
+          } else if (p.active && p.isAI) {
+            const activeCount = gameState.players.filter((pl) => pl.active).length;
+            if (activeCount > 1) {
+              p.active = false;
+              p.isAI = false;
+            } else {
+              p.isAI = false;
+            }
+          } else {
+            p.active = true;
+            p.isAI = false;
+          }
+
+          gameState.selectedPreset = 'custom';
+          updateModeButtonsUI();
+          syncPieceVisibility();
+          renderLobbySlots();
+          updateHUD();
+          broadcastMP({
+            type: 'REMOTE_SLOT_TOGGLE',
+            slot: slotIdx,
+            active: p.active,
+            isAI: p.isAI
+          });
+        });
+      });
+    }
+
+    document.querySelectorAll('.mode-preset-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const mode = btn.getAttribute('data-mode');
+        if (mode) applyPlayerCountPreset(mode, false);
+      });
+    });
+
+    document.getElementById('btn-roll-dice').addEventListener('click', triggerRollDice);
+    document.getElementById('btn-restart-game').addEventListener('click', () => resetGameState(false));
+    document.getElementById('btn-victory-restart').addEventListener('click', () => resetGameState(false));
+
+    document.getElementById('btn-cam-iso').addEventListener('click', () => setCameraPreset('iso'));
+    document.getElementById('btn-cam-top').addEventListener('click', () => setCameraPreset('top'));
+    document.getElementById('btn-cam-follow').addEventListener('click', () => setCameraPreset('follow'));
+
+    document.getElementById('btn-toggle-sound').addEventListener('click', () => {
+      const isOn = soundEngine.toggle();
+      document.getElementById('sound-icon-on').className = isOn ? 'flex items-center gap-1' : 'hidden items-center gap-1';
+      document.getElementById('sound-icon-off').className = isOn ? 'hidden items-center gap-1 text-slate-400' : 'flex items-center gap-1 text-slate-400';
+    });
+
+    const modalRules = document.getElementById('modal-rules');
+    const modalLobby = document.getElementById('modal-lobby');
+
+    document.getElementById('btn-open-rules').addEventListener('click', () => {
+      modalRules.classList.remove('hidden');
+    });
+    document.getElementById('btn-close-rules').addEventListener('click', () => {
+      modalRules.classList.add('hidden');
+    });
+
+    document.getElementById('btn-open-lobby').addEventListener('click', () => {
+      renderLobbySlots();
+      modalLobby.classList.remove('hidden');
+    });
+    document.getElementById('btn-close-lobby').addEventListener('click', () => {
+      modalLobby.classList.add('hidden');
+    });
+
+    document.getElementById('btn-create-room').addEventListener('click', () => {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let code = 'CURSE-';
+      for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+      gameState.roomCode = code;
+      document.getElementById('lobby-room-code').textContent = code;
+      document.getElementById('mp-badge-text').textContent = `Room: ${code}`;
+      setBannerMessage(`Created Multiplayer Room ${code}. Open another tab or share code to sync!`, 'bg-purple-400');
+    });
+
+    document.getElementById('btn-join-room').addEventListener('click', () => {
+      const input = document.getElementById('input-room-code');
+      const code = (input.value || '').trim().toUpperCase();
+      if (!code) return;
+      gameState.roomCode = code;
+      document.getElementById('lobby-room-code').textContent = code;
+      document.getElementById('mp-badge-text').textContent = `Room: ${code}`;
+      setBannerMessage(`Joined Multiplayer Room ${code}. Synchronized with Coven channel.`, 'bg-emerald-400');
+    });
+
+    document.getElementById('btn-copy-room').addEventListener('click', () => {
+      const code = gameState.roomCode;
+      try {
+        const temp = document.createElement('textarea');
+        temp.value = code;
+        document.body.appendChild(temp);
+        temp.select();
+        document.execCommand('copy');
+        document.body.removeChild(temp);
+        const copyBtn = document.getElementById('btn-copy-room');
+        copyBtn.textContent = 'Copied!';
+        setTimeout(() => { copyBtn.textContent = 'Copy Invite Code'; }, 1400);
+      } catch (e) {}
+    });
+
+    container.addEventListener('pointerdown', (e) => {
+      camOrbit.isDragging = true;
+      camOrbit.prevX = e.clientX;
+      camOrbit.prevY = e.clientY;
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      if (!camOrbit.isDragging) return;
+      const dx = e.clientX - camOrbit.prevX;
+      const dy = e.clientY - camOrbit.prevY;
+      camOrbit.prevX = e.clientX;
+      camOrbit.prevY = e.clientY;
+
+      camOrbit.theta -= dx * 0.0065;
+      camOrbit.phi = Math.max(0.18, Math.min(1.22, camOrbit.phi - dy * 0.006));
+    });
+
+    window.addEventListener('pointerup', () => {
+      camOrbit.isDragging = false;
+    });
+
+    container.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      camOrbit.radius = Math.max(11, Math.min(30, camOrbit.radius + e.deltaY * 0.012));
+    }, { passive: false });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' && modalRules.classList.contains('hidden') && modalLobby.classList.contains('hidden')) {
+        e.preventDefault();
+        triggerRollDice();
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    /*************************************************************************
+     * 11. MAIN 60FPS RENDER & HORROR ATMOSPHERE ANIMATION LOOP
+     *************************************************************************/
+    const clock = new THREE.Clock();
+
+    function animateScene() {
+      requestAnimationFrame(animateScene);
+      const dt = clock.getDelta();
+      const elapsed = clock.getElapsedTime();
+
+      Object.values(snakeActors).forEach((actor) => {
+        const s = actor.config;
+        const isAttacking = gameState.attackingSnakeId === s.id;
+        actor.headPivot.position.y = actor.baseHeadY + Math.sin(elapsed * s.speed) * 0.055 + (isAttacking ? 0.25 : 0);
+        actor.headPivot.rotation.z = Math.cos(elapsed * s.speed * 0.8) * 0.08;
+        actor.jawPivot.rotation.x = isAttacking ? 0.72 : (0.14 + Math.max(0, Math.sin(elapsed * 2.2)) * 0.16);
+        actor.tongueGroup.scale.z = 0.75 + Math.sin(elapsed * 11.0) * 0.45;
+      });
+
+      const activeMesh = playerMeshes[gameState.currentTurn];
+      if (activeMesh && activeMesh.visible) {
+        turnRingMesh.position.set(activeMesh.position.x, 0.17, activeMesh.position.z);
+        turnRingMesh.rotation.z = elapsed * 1.8;
+        const pulse = 1 + Math.sin(elapsed * 4) * 0.12;
+        turnRingMesh.scale.set(pulse, pulse, 1);
+      }
+
+      cornerLights.forEach((cl) => {
+        const flicker = Math.sin(elapsed * 9 + cl.phase) * 0.15 + Math.cos(elapsed * 17 + cl.phase) * 0.08;
+        cl.light.intensity = cl.baseIntensity + flicker;
+        cl.flame.scale.y = 1 + flicker * 0.5;
+      });
+
+      const pArr = sporeParticles.geometry.attributes.position.array;
+      for (let i = 0; i < particleCount; i++) {
+        pArr[i * 3 + 1] += dt * 0.32;
+        pArr[i * 3] += Math.sin(elapsed * 0.6 + i) * dt * 0.12;
+        if (pArr[i * 3 + 1] > 9.5) pArr[i * 3 + 1] = 0.3;
+      }
+      sporeParticles.geometry.attributes.position.needsUpdate = true;
+
+      if (gameState.cameraMode === 'follow' && activeMesh) {
+        camOrbit.target.lerp(activeMesh.position, 0.08);
+        camOrbit.radius = THREE.MathUtils.lerp(camOrbit.radius, 14.5, 0.05);
+      }
+
+      const camX = camOrbit.target.x + camOrbit.radius * Math.sin(camOrbit.phi) * Math.sin(camOrbit.theta);
+      const camY = camOrbit.target.y + camOrbit.radius * Math.cos(camOrbit.phi);
+      const camZ = camOrbit.target.z + camOrbit.radius * Math.sin(camOrbit.phi) * Math.cos(camOrbit.theta);
+
+      camOrbit.desiredCamPos.set(camX, camY, camZ);
+      camera.position.lerp(camOrbit.desiredCamPos, 0.12);
+      camOrbit.currentLookAt.lerp(camOrbit.target, 0.12);
+
+      if (gameState.shakeTime > 0) {
+        gameState.shakeTime -= dt;
+        const s = gameState.shakeIntensity * (gameState.shakeTime / 0.65);
+        camera.position.x += (Math.random() - 0.5) * s;
+        camera.position.y += (Math.random() - 0.5) * s;
+        camera.position.z += (Math.random() - 0.5) * s;
+      }
+
+      camera.lookAt(camOrbit.currentLookAt);
+      renderer.render(scene, camera);
+    }
+
+    window.onload = function () {
+      syncPieceVisibility();
+      updateHUD();
+      renderLobbySlots();
+      animateScene();
+    };
+  </script>
+</body>
+</html>
